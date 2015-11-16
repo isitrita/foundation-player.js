@@ -8,7 +8,7 @@
 # TODO: Replace audio with shorter one
 # TODO: Add style fixtures
 
-describe 'Audio async tests', ->
+xdescribe 'Audio async tests', ->
   no1 = null
   LOADING_TIMEOUT = 1000
   TEST_TIMEOUT = 1500
