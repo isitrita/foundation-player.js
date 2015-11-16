@@ -2,16 +2,19 @@
   var slice = [].slice;
 
   (function($, window) {
+    'use strict';
     var FoundationPlayer;
     FoundationPlayer = (function() {
-      var isNumber, prettyTime, stringPadLeft, switchClass;
+      var isNumber, parseSeekTime, prettyTime, stringPadLeft, switchClass;
 
       FoundationPlayer.prototype.defaults = {
         size: 'normal',
         playOnLoad: false,
         skipSeconds: 10,
         dimmedVolume: 0.25,
-        pauseOthersOnPlay: true
+        pauseOthersOnPlay: true,
+        useSeekData: false,
+        seekDataClass: 'seek-to'
       };
 
       function FoundationPlayer(el, opt) {
@@ -37,6 +40,9 @@
         this.setUpButtonVolume();
         this.setUpButtonRewind();
         this.setUpPlayedProgress();
+        if (this.options.useSeekData) {
+          this.parseDataLinks();
+        }
       }
 
       FoundationPlayer.prototype.playPause = function() {
@@ -67,8 +73,7 @@
       };
 
       FoundationPlayer.prototype.seekToTime = function(time) {
-        var m;
-        this.audio.currentTime = (isNumber(time) ? time : (m = time.match(/^(\d{0,3})$/)) ? m[1] : (m = time.match(/^(\d?\d):(\d\d)$/)) ? (parseInt(m[1], 10)) * 60 + (parseInt(m[2], 10)) : console.error('seekToTime(time), invalid argument: ' + time));
+        this.audio.currentTime = parseSeekTime(time);
         this.updatePlayedProgress();
         this.updateTimeStatuses();
         return this;
@@ -178,7 +183,7 @@
         this.$played.css('width', this.played + '%');
         this.$progress.on('click.fndtn.player', (function(_this) {
           return function(e) {
-            return _this.seekPercent(Math.floor(e.offsetX / _this.$progress.outerWidth() * 100));
+            return _this.seekPercent(Math.floor(100 * e.offsetX / _this.$progress.outerWidth()));
           };
         })(this));
         this.$progress.on('mousedown.fndtn.player', (function(_this) {
@@ -207,7 +212,7 @@
         return this.$progress.on('mousemove.fndtn.player', (function(_this) {
           return function(e) {
             if (_this.nowdragging) {
-              return _this.seekPercent(Math.floor(e.offsetX / _this.$progress.outerWidth() * 100));
+              return _this.seekPercent(Math.floor(100 * e.offsetX / _this.$progress.outerWidth()));
             }
           };
         })(this));
@@ -232,7 +237,7 @@
           for (range = i = 0, ref = segments; 0 <= ref ? i < ref : i > ref; range = 0 <= ref ? ++i : --i) {
             b = this.audio.buffered.start(range);
             e = this.audio.buffered.end(range);
-            results.push(switchClass(this.$played.clone(), 'buffered', 'played').css('left', l + (Math.floor(w * (b / this.audio.duration))) + 'px').css('top', t).height(h).width(Math.floor(w * (e - b) / this.audio.duration)).appendTo(this.$progress));
+            results.push(switchClass(this.$played.clone(), 'buffered', 'played').css('left', l + (w * (Math.floor(b / this.audio.duration))) + 'px').css('top', t).height(h).width(Math.floor(w * (e - b) / this.audio.duration)).appendTo(this.$progress));
           }
           return results;
         }
@@ -300,18 +305,22 @@
         return $.data(document.body, 'FoundationPlayers');
       };
 
+      FoundationPlayer.prototype.parseDataLinks = function() {
+        return false;
+      };
+
       switchClass = function(element, p, n) {
         return $(element).addClass(p).removeClass(n);
       };
 
       prettyTime = function(s) {
-        var minutes, seconds;
+        var min, sec;
         if (!isNumber(s)) {
           return false;
         }
-        minutes = Math.floor(s / 60);
-        seconds = Math.floor(s - minutes * 60);
-        return (stringPadLeft(minutes, '0', 2)) + ':' + (stringPadLeft(seconds, '0', 2));
+        min = Math.floor(s / 60);
+        sec = s - min * 60;
+        return (stringPadLeft(min, '0', 2)) + ':' + (stringPadLeft(Math.floor(sec / 1), '0', 2));
       };
 
       stringPadLeft = function(string, pad, length) {
@@ -322,11 +331,25 @@
         return typeof x === 'number' && isFinite(x);
       };
 
+      parseSeekTime = function(time) {
+        var m;
+        if (isNumber(time)) {
+          return time;
+        } else if (m = time.match(/^(\d{1,})$/)) {
+          return m[1];
+        } else if (m = time.match(/^(\d?\d):(\d\d)$/)) {
+          return (parseInt(m[1], 10)) * 60 + (parseInt(m[2], 10));
+        } else {
+          return false;
+        }
+      };
+
 
 
       return FoundationPlayer;
 
     })();
+
     return $.fn.extend({
       foundationPlayer: function() {
         var args, option;

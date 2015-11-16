@@ -2,6 +2,7 @@
 # Authors: Alexander Egorov, Rita Kondratyeva
 
 (($, window) ->
+  'use strict'
   # Define the plugin class
   class FoundationPlayer
     defaults:
@@ -10,6 +11,8 @@
       skipSeconds: 10         # How many we want to skip
       dimmedVolume: 0.25      # Reduced volume i.e. while seeking
       pauseOthersOnPlay: true # Pause other player instances
+      useSeekData: false      # Don't parse seek date from links by default
+      seekDataClass: 'seek-to' # Filter only links with this class
 
     constructor: (el, opt) ->
       @options = $.extend({}, @defaults, opt)
@@ -39,8 +42,9 @@
       @setUpButtonVolume()    # Set up volume button
       @setUpButtonRewind()    # Set up rewind button
       @setUpPlayedProgress()  # Set up played progress meter
+      @parseDataLinks() if @options.useSeekData
 
-    # Playback control =========================================================
+    # Playback API =============================================================
     playPause: ->
       if @audio.paused then @play() else @pause()
     play: ->
@@ -54,16 +58,7 @@
 
     seekToTime: (time) ->
       # TODO: Split parse logic in private function, and cover
-      @audio.currentTime = (
-        if isNumber(time) # Numeric e.g. 42th second
-          time
-        else if m = time.match /^(\d{0,3})$/  # String e.g. '15', '42'...
-          m[1]
-        else if m = time.match /^(\d?\d):(\d\d)$/ # String e.g. '00:15', '1:42'...
-          (parseInt m[1], 10) * 60 + (parseInt m[2], 10)
-        else
-          console.error 'seekToTime(time), invalid argument: ' + time
-      )
+      @audio.currentTime = parseSeekTime(time)
       # Common part, update UI and return
       @updatePlayedProgress()
       @updateTimeStatuses()
@@ -146,7 +141,7 @@
       @$played.css 'width', @played + '%'
       # Click and drag progress
       @$progress.on 'click.fndtn.player', (e) =>
-        @seekPercent(Math.floor e.offsetX / @$progress.outerWidth() * 100)
+        @seekPercent 100 * e.offsetX // @$progress.outerWidth()
       # Drag section is tricky
       # TODO: Mobile actions
 
@@ -165,7 +160,7 @@
       # Update player position
       @$progress.on 'mousemove.fndtn.player', (e) =>
         if @nowdragging
-          @seekPercent(Math.floor e.offsetX / @$progress.outerWidth() * 100)
+          @seekPercent 100 * e.offsetX // @$progress.outerWidth()
 
     updatePlayedProgress: ->
       @played = Math.round @audio.currentTime / @audio.duration * 100
@@ -187,8 +182,8 @@
           b = @audio.buffered.start(range) # Segment start second
           e = @audio.buffered.end(range) # Segment end second
           switchClass(@$played.clone(), 'buffered', 'played')
-          .css('left', l + (Math.floor w * (b / @audio.duration)) + 'px')
-          .css('top', t).height(h).width(Math.floor(w*(e-b)/@audio.duration))
+          .css('left', l + (w * (b // @audio.duration)) + 'px')
+          .css('top', t).height(h).width(w*(e-b)//@audio.duration)
           .appendTo(@$progress)
 
     # Volume ===================================================================
@@ -243,6 +238,10 @@
     getPlayerInstances: ->
       $.data(document.body, 'FoundationPlayers')
 
+    # Data links ===============================================================
+    parseDataLinks: ->
+      false
+
     # Helpers ==================================================================
     # Some really internal stuff goes here
     switchClass = (element, p, n) ->
@@ -252,9 +251,9 @@
     prettyTime = (s) ->
       return false unless isNumber s
       # As seen here: http://stackoverflow.com/questions/3733227
-      minutes = Math.floor s / 60
-      seconds = Math.floor s - minutes * 60
-      (stringPadLeft minutes, '0', 2) + ':' + (stringPadLeft seconds, '0', 2)
+      min = s // 60
+      sec = s - min * 60
+      (stringPadLeft min, '0', 2) + ':' + (stringPadLeft sec // 1, '0', 2)
 
     # Small helper to padd time correctly
     stringPadLeft = (string,pad,length) ->
@@ -266,14 +265,31 @@
     isNumber = (x) ->
       typeof x == 'number' and isFinite(x)
 
+    parseSeekTime = (time) ->
+      if isNumber(time) # Numeric e.g. 42th second
+        time
+      else if m = time.match /^(\d{1,})$/ # String e.g. '15', '42'...
+        m[1]
+      else if m = time.match /^(\d?\d):(\d\d)$/ # String e.g. '00:15', '1:42'...
+        (parseInt m[1], 10) * 60 + (parseInt m[2], 10)
+      else
+        false
+
     # API for testing private functions
-    ###__TEST_API_STARTS__###
+    # This comment section passed in compiled JavaScript
+    ###__TEST_ONLY_SECTION_STARTS__###
     testingAPI: () ->
       isNumber: isNumber
       prettyTime: prettyTime
       stringPadLeft: stringPadLeft
       switchClass: switchClass
-    ###__TEST_API_ENDS__###
+      parseSeekTime: parseSeekTime
+    ###__TEST_ONLY_SECTION_ENDS__###
+
+  # Global variable for testing prototype functions
+  ###__TEST_ONLY_SECTION_STARTS__###
+  window.FoundationPlayer = FoundationPlayer
+  ###__TEST_ONLY_SECTION_ENDS__###
 
   # Define the jQuery plugin
   $.fn.extend foundationPlayer: (option, args...) ->
@@ -285,4 +301,5 @@
         fplayer = new FoundationPlayer(this, option)
         $.data this, 'FoundationPlayer', fplayer
         $.data(document.body, 'FoundationPlayers').push(fplayer)
+
 ) window.jQuery, window
