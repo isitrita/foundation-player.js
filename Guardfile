@@ -2,7 +2,7 @@
 # Settings for Foundation Player script:
 coffee_options_src = {
   input: 'src', output: 'dist',
-  patterns: [%r{^src/(.+\.dev\.(?:coffee|coffee\.md|litcoffee))$}],
+  patterns: [%r{^src/(.+\.(?:coffee|coffee\.md|litcoffee))$}],
   all_on_start: true
 }
 # Settings for specs:
@@ -53,7 +53,7 @@ group :all_the_stuff, halt_on_fail: true do
   guard 'livereload' do
     watch(%r{^spec/javascripts/(.*)\.js})
     watch(%r{^spec/javascripts/(.*)\.html})
-    watch(%r{^dist/(.*)\.js})
+    watch(%r{^dist/(.*)\.dev\.js})
     watch(%r{^dist/(.*)\.css})
     watch(/^index\.html/)
   end

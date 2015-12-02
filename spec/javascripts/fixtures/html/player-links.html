@@ -1,7 +1,7 @@
 <div class='foundation-player links'>
-  <ul class='player inline-list noselect'>
+  <ul class='player menu simple noselect'>
     <li class='player-button play'>
-      <em class='fi-music'></em>
+      <em class='fi-pause'></em>
     </li>
     <li class='player-button rewind'>
       <em class='fi-refresh'></em>
@@ -13,29 +13,35 @@
       <span class='elapsed'>00:00</span>
     </li>
     <li class='player-progress'>
-      <div class='progress round'>
-        <span class='meter played'></span>
+      <div class='progress round' role='progressbar'>
+        <div class='progress-meter played'></div>
       </div>
     </li>
     <li class='player-status time'>
       <span class='remains'>-00:00</span>
     </li>
   </ul>
-  <audio preload='auto'>
-    <source src='./lib/audio/ukulele.m4a'>
+  <audio>
+    <source src='./lib/audio/acoustic-b.m4a'>
   </audio>
 </div>
 <ul>
-  <p>Fixtures to test seek to exact time</p>
-  <li><a href="/" class='seek-to' data-seek-to-time='00:01'>00:01</a></li>
-  <li><a href="/" class='seek-to' data-seek-to-time='00:02'>00:01</a></li>
-  <li><a href="/" data-seek-to-time='00:01'>Go</a> here.</li>
-  <li><a href="/" data-seek-to-time='00:02'>Go</a> there.</li>
+  <p>Correct fixtures for exact time seeking</p>
+  <li><a href="#" class='valid' data-seek-to-time='00:01'>Go</a> here.</li>
+  <li><a href="#" class='valid' data-seek-to-time='0:02'>Go</a> there.</li>
 </ul>
 <ul>
-  <p>Fixtures to test seek to percent</p>
-  <li><a href="/" class='seek-to' data-seek-to-percent='1'>00:01</a></li>
-  <li><a href="/" class='seek-to' data-seek-to-percent='5'>00:01</a></li>
-  <li><a href="/" data-seek-to-percent='0.01'>Go</a> here.</li>
-  <li><a href="/" data-seek-to-percent='0.05'>Go</a> there.</li>
+  <p>Incorrect fixtures for exact time seeking</p>
+  <li><a href="#" class='invalid' data-seek-to-time='00:1'>Go</a> here.</li>
+  <li><a href="#" class='invalid' data-seek-to-time='end'>Go</a> there.</li>
+</ul>
+<ul>
+  <p>Correct fixtures for percentage seeking</p>
+  <li><a href="#" class='valid' data-seek-to-percentage='0.1'>Go</a> %10.</li>
+  <li><a href="#" class='valid' data-seek-to-percentage='20'>Go</a> %20.</li>
+</ul>
+<ul>
+  <p>Incorrect fixtures for percentage seeking</p>
+  <li><a href="#" class='invalid' data-seek-to-percentage='--'>Go</a> %10.</li>
+  <li><a href="#" class='invalid' data-seek-to-percentage='20%'>Go</a> %20.</li>
 </ul>

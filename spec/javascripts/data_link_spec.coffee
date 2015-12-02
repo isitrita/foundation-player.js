@@ -1,4 +1,4 @@
-describe 'Data links tests', ->
+describe 'Data links', ->
 
   beforeEach ->
     jasmine.getFixtures().fixturesPath = '.'
@@ -8,30 +8,48 @@ describe 'Data links tests', ->
     player = null
     $.removeData document.body, 'FoundationPlayers'
 
-  it 'has default options', ->
+  it 'are disabled by default', ->
+    spyOn FoundationPlayer.prototype, 'parseDataLinks'
     $('.links').foundationPlayer()
-    player = $('.links').data('FoundationPlayer')
+    player = $('.links').data 'FoundationPlayer'
     expect(player.options.useSeekData).toBe false
-    expect(player.options.seekDataClass).toBe 'seek-to'
-
-  it 'works with non-default options', ->
-    $('.links').foundationPlayer(useSeekData: true, seekDataClass: 'time-to-go')
-    player = $('.links').data('FoundationPlayer')
-    expect(player.options.useSeekData).not.toBe false
-    expect(player.options.useSeekData).toBe true
-    expect(player.options.seekDataClass).not.toBe 'seek-to'
-    expect(player.options.seekDataClass).toBe 'time-to-go'
-
-  it 'make parseDataLinks call if necessary', ->
-    spyOn FoundationPlayer.prototype, 'parseDataLinks'
-    $('.links').foundationPlayer(useSeekData: true)
-    expect(FoundationPlayer.prototype.parseDataLinks).toHaveBeenCalledWith()
-
-  it 'skip parseDataLinks call by default', ->
-    spyOn FoundationPlayer.prototype, 'parseDataLinks'
-    $('.links').foundationPlayer()
     expect(FoundationPlayer.prototype.parseDataLinks).not.toHaveBeenCalledWith()
 
-  # TODO: Profile jQuery selector speed [data] vs .class[data]
-  # http://jsfiddle.net/cse_tushar/NT7jf/
-  # http://stackoverflow.com/questions/2487747/
+  it 'have working parseDataLinks option', ->
+    spyOn FoundationPlayer.prototype, 'parseDataLinks'
+    $('.links').foundationPlayer useSeekData: true
+    player = $('.links').data 'FoundationPlayer'
+    expect(player.options.useSeekData).toBe true
+    expect(FoundationPlayer.prototype.parseDataLinks).toHaveBeenCalledWith()
+
+  it 'elements have click handler', ->
+    $dataTimeLinks = $('[data-seek-to-time]')
+    expect($dataTimeLinks).not.toHandle 'click'
+    $('.links').foundationPlayer useSeekData: true
+    expect($dataTimeLinks).toHandle 'click'
+
+  it 'are stored in object property', ->
+    # This test requires full control over player behaviour
+    player = null
+    $.removeData document.body, 'FoundationPlayers'
+    $('.links').foundationPlayer useSeekData: false
+    player = $('.links').data 'FoundationPlayer'
+    # Check it is empty
+    expect(player.options.useSeekData).toBe false
+    expect(player.dataLinks.length).toBe 0
+    # Change state and parse data links
+    player.options.useSeekData = true
+    player.parseDataLinks()
+    # Check it is empty
+    expect(player.options.useSeekData).toBe true
+    expect(player.dataLinks.length).not.toBe []
+    expect(player.dataLinks.length).toBe 4
+
+  xit 'TODO: produce correct seek to time actions', ->
+    false
+
+  xit 'TODO: produce correct percentage seek actions', ->
+    false
+
+  xit 'TODO: handled by latest initilized player', ->
+    false

@@ -5,7 +5,7 @@
     'use strict';
     var FoundationPlayer;
     FoundationPlayer = (function() {
-      var isNumber, parseSeekTime, prettyTime, stringPadLeft, switchClass;
+      var isNumber, parseSeekPercent, parseSeekTime, prettyTime, stringPadLeft, switchClass;
 
       FoundationPlayer.prototype.defaults = {
         size: 'normal',
@@ -13,8 +13,7 @@
         skipSeconds: 10,
         dimmedVolume: 0.25,
         pauseOthersOnPlay: true,
-        useSeekData: false,
-        seekDataClass: 'seek-to'
+        useSeekData: false
       };
 
       function FoundationPlayer(el, opt) {
@@ -27,13 +26,14 @@
         this.$elapsed = this.$wrapper.find('.player-status.time .elapsed');
         this.$remains = this.$wrapper.find('.player-status.time .remains');
         this.$progress = this.$wrapper.find('.player-progress .progress');
-        this.$played = this.$progress.find('.meter.played');
+        this.$played = this.$progress.find('.progress-meter.played');
         this.$sources = this.$wrapper.children('audio');
         this.audio = this.$sources.get(0);
         this.played = 0;
         this.nowdragging = false;
         this.currentUISize = this.options.size;
         this.canPlayCurrent = false;
+        this.dataLinks = [];
         this.resetClassAndStyle();
         this.setUpCurrentAudio();
         this.setUpButtonPlayPause();
@@ -73,14 +73,22 @@
       };
 
       FoundationPlayer.prototype.seekToTime = function(time) {
-        this.audio.currentTime = parseSeekTime(time);
-        this.updatePlayedProgress();
-        this.updateTimeStatuses();
+        if (this.canPlayCurrent) {
+          time = parseSeekTime(time);
+          if (time > this.audio.duration) {
+            time = this.audio.duration;
+          }
+          this.audio.currentTime = time;
+          this.updatePlayedProgress();
+          this.updateTimeStatuses();
+        }
         return this;
       };
 
       FoundationPlayer.prototype.seekPercent = function(p) {
-        this.audio.currentTime = this.audio.duration * (p >= 1 ? p / 100 : p);
+        var timeToGo;
+        timeToGo = this.audio.duration * parseSeekPercent(p);
+        this.audio.currentTime = timeToGo || 0;
         this.updatePlayedProgress();
         this.updateTimeStatuses();
         return this;
@@ -95,31 +103,31 @@
         var $audio;
         this.audio.load();
         $audio = $(this.audio);
-        $audio.on('timeupdate.fndtn.player', (function(_this) {
+        $audio.on('timeupdate.zf.player`', (function(_this) {
           return function() {
             _this.updatePlayedProgress();
             return _this.updateTimeStatuses();
           };
         })(this));
-        $audio.on('loadstart.fndtn.player', (function(_this) {
+        $audio.on('loadstart.zf.player`', (function(_this) {
           return function() {
             _this.canPlayCurrent = false;
             _this.updateDisabledStatus();
             return _this.updateButtonPlay();
           };
         })(this));
-        $audio.on('durationchange.fndtn.player', (function(_this) {
+        $audio.on('durationchange.zf.player`', (function(_this) {
           return function() {
             return _this.updateTimeStatuses();
           };
         })(this));
-        $audio.on('progress.fndtn.player', (function(_this) {
+        $audio.on('progress.zf.player`', (function(_this) {
           return function() {
             _this.redrawBufferizationBars();
             return _this.updateDisabledStatus();
           };
         })(this));
-        return $audio.on('canplay.fndtn.player', (function(_this) {
+        return $audio.on('canplay.zf.player`', (function(_this) {
           return function() {
             _this.canPlayCurrent = true;
             if (_this.options.playOnLoad) {
@@ -150,7 +158,7 @@
       };
 
       FoundationPlayer.prototype.setUpButtonVolume = function() {
-        return this.$volume.bind('click.fndtn.player', (function(_this) {
+        return this.$volume.bind('click.zf.player`', (function(_this) {
           return function() {
             return _this.buttonVolumeHandler();
           };
@@ -181,12 +189,12 @@
       FoundationPlayer.prototype.setUpPlayedProgress = function() {
         var _stopDragHandler;
         this.$played.css('width', this.played + '%');
-        this.$progress.on('click.fndtn.player', (function(_this) {
+        this.$progress.on('click.zf.player`', (function(_this) {
           return function(e) {
             return _this.seekPercent(Math.floor(100 * e.offsetX / _this.$progress.outerWidth()));
           };
         })(this));
-        this.$progress.on('mousedown.fndtn.player', (function(_this) {
+        this.$progress.on('mousedown.zf.player`', (function(_this) {
           return function() {
             _this.nowdragging = true;
             return _this.setVolume(_this.options.dimmedVolume);
@@ -200,16 +208,16 @@
             }
           };
         })(this);
-        this.$player.on('mouseleave.fndtn.player', function() {
+        this.$player.on('mouseleave.zf.player`', function() {
           return _stopDragHandler();
         });
-        $(document).on('mouseup.fndtn.player', function() {
+        $(document).on('mouseup.zf.player`', function() {
           return _stopDragHandler();
         });
-        $(window).on('blur.fndtn.player', function() {
+        $(window).on('blur.zf.player`', function() {
           return _stopDragHandler();
         });
-        return this.$progress.on('mousemove.fndtn.player', (function(_this) {
+        return this.$progress.on('mousemove.zf.player`', (function(_this) {
           return function(e) {
             if (_this.nowdragging) {
               return _this.seekPercent(Math.floor(100 * e.offsetX / _this.$progress.outerWidth()));
@@ -224,20 +232,16 @@
       };
 
       FoundationPlayer.prototype.redrawBufferizationBars = function() {
-        var b, e, h, i, l, range, ref, results, segments, t, w, widthDelta;
+        var b, e, i, range, ref, results, segments, w;
         this.$progress.find('.buffered').remove();
         segments = this.audio.buffered.length;
         if (segments > 0) {
-          t = parseInt(this.$progress.css('padding-top'), 10);
-          l = parseInt(this.$progress.css('padding-left'), 10);
           w = this.$progress.width();
-          h = this.$progress.height();
-          widthDelta = 2 * parseInt(this.$played.css('padding-left'), 10);
           results = [];
           for (range = i = 0, ref = segments; 0 <= ref ? i < ref : i > ref; range = 0 <= ref ? ++i : --i) {
             b = this.audio.buffered.start(range);
             e = this.audio.buffered.end(range);
-            results.push(switchClass(this.$played.clone(), 'buffered', 'played').css('left', l + (w * (Math.floor(b / this.audio.duration))) + 'px').css('top', t).height(h).width(Math.floor(w * (e - b) / this.audio.duration)).appendTo(this.$progress));
+            results.push(switchClass(this.$played.clone(), 'buffered', 'played').css('left', (w * (Math.floor(b / this.audio.duration))) + 'px').width(Math.floor(w * (e - b) / this.audio.duration)).appendTo(this.$progress));
           }
           return results;
         }
@@ -277,13 +281,15 @@
       };
 
       FoundationPlayer.prototype.setPlayerSize = function(size) {
-        if (('normal' === size || 'small' === size) && size !== this.currentUISize) {
-          switchClass(this.$wrapper, size, this.currentUISize);
-          this.setPlayerSizeHandler();
-          return this.currentUISize = size;
-        } else {
-          console.error('setPlayerSize: incorrect size argument');
-          return false;
+        if (size !== this.currentUISize) {
+          if ('normal' === size || 'small' === size) {
+            switchClass(this.$wrapper, size, this.currentUISize);
+            this.setPlayerSizeHandler();
+            return this.currentUISize = size;
+          } else {
+            console.error('setPlayerSize: incorrect size argument');
+            return false;
+          }
         }
       };
 
@@ -295,9 +301,9 @@
       FoundationPlayer.prototype.playerBeautifyProgressBar = function() {
         var semiHeight;
         if (this.$progress.hasClass('round')) {
-          semiHeight = this.$played.height() / 2;
-          this.$played.css('padding', '0 ' + semiHeight + 'px');
-          return this.$progress.find('.buffered').css('padding', '0 ' + semiHeight + 'px');
+          semiHeight = this.$progress.height() / 2;
+          this.$played.css('padding', "0 " + semiHeight + "px");
+          return this.$progress.find('.buffered').css('padding', "0 " + semiHeight + "px");
         }
       };
 
@@ -306,7 +312,35 @@
       };
 
       FoundationPlayer.prototype.parseDataLinks = function() {
-        return false;
+        var clсk, percentLinks, timeLinks;
+        this.dataLinks = [];
+        timeLinks = $('[data-seek-to-time]');
+        percentLinks = $('[data-seek-to-percentage]');
+        clсk = 'click.zf.player.seek';
+        $.each(timeLinks, (function(_this) {
+          return function(index, el) {
+            var parsedData;
+            if (parsedData = parseSeekTime($(el).data('seek-to-time'))) {
+              _this.dataLinks.push(el);
+              return $(el).off(clсk).on(clсk, _this, function(e) {
+                e.preventDefault();
+                return e.data.seekToTime(parsedData);
+              });
+            }
+          };
+        })(this));
+        return $.each(percentLinks, (function(_this) {
+          return function(index, el) {
+            var parsedData;
+            if (parsedData = parseSeekPercent($(el).data('seek-to-percentage'))) {
+              _this.dataLinks.push(el);
+              return $(el).off(clсk).on(clсk, _this, function(e) {
+                e.preventDefault();
+                return e.data.seekPercent(parsedData);
+              });
+            }
+          };
+        })(this));
       };
 
       switchClass = function(element, p, n) {
@@ -341,6 +375,23 @@
           return (parseInt(m[1], 10)) * 60 + (parseInt(m[2], 10));
         } else {
           return false;
+        }
+      };
+
+      parseSeekPercent = function(p) {
+        if (!isNumber(p)) {
+          return isNumber(p);
+        }
+        if (p < 0) {
+          return 0;
+        }
+        if (p > 100) {
+          return 1;
+        }
+        if (p > 1) {
+          return p / 100;
+        } else {
+          return p;
         }
       };
 

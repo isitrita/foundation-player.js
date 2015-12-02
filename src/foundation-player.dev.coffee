@@ -11,8 +11,7 @@
       skipSeconds: 10         # How many we want to skip
       dimmedVolume: 0.25      # Reduced volume i.e. while seeking
       pauseOthersOnPlay: true # Pause other player instances
-      useSeekData: false      # Don't parse seek date from links by default
-      seekDataClass: 'seek-to' # Filter only links with this class
+      useSeekData: false      # Parse seek data from links by default
 
     constructor: (el, opt) ->
       @options = $.extend({}, @defaults, opt)
@@ -25,7 +24,7 @@
       @$elapsed =  @$wrapper.find('.player-status.time .elapsed')
       @$remains =  @$wrapper.find('.player-status.time .remains')
       @$progress = @$wrapper.find('.player-progress .progress')
-      @$played =   @$progress.find('.meter.played')
+      @$played =   @$progress.find('.progress-meter.played')
       @$sources =  @$wrapper.children('audio')
       # DOM Elements
       # TODO: Manage current audio object more carefully
@@ -35,6 +34,7 @@
       @nowdragging = false
       @currentUISize = @options.size
       @canPlayCurrent = false
+      @dataLinks = []
       # Init calls
       @resetClassAndStyle()   # Setup classes and styles
       @setUpCurrentAudio()    # Set up Play/Pause
@@ -57,17 +57,17 @@
       @updateButtonPlay()
 
     seekToTime: (time) ->
-      # TODO: Split parse logic in private function, and cover
-      @audio.currentTime = parseSeekTime(time)
-      # Common part, update UI and return
-      @updatePlayedProgress()
-      @updateTimeStatuses()
+      if @canPlayCurrent
+        time = parseSeekTime time
+        if time > @audio.duration then time = @audio.duration # Needs for Sarari
+        @audio.currentTime = time
+        @updatePlayedProgress()
+        @updateTimeStatuses()
       @
 
     seekPercent: (p) ->
-      # TODO: Split percent logic in private function, and cover
-      # Can use both 0.65 and 65
-      @audio.currentTime = @audio.duration * (if p >= 1 then p/100 else p)
+      timeToGo = @audio.duration * parseSeekPercent p
+      @audio.currentTime = timeToGo or 0
       @updatePlayedProgress()
       @updateTimeStatuses()
       @
@@ -85,20 +85,20 @@
       # Start preload of audio file
       @audio.load()
       $audio = $(@audio)
-      $audio.on 'timeupdate.fndtn.player', => # While playing
+      $audio.on 'timeupdate.zf.player`', => # While playing
         @updatePlayedProgress()
         @updateTimeStatuses()
       # Bunch of <audio> events
-      $audio.on 'loadstart.fndtn.player', => # Loading is started
+      $audio.on 'loadstart.zf.player`', => # Loading is started
         @canPlayCurrent = false
         @updateDisabledStatus()
         @updateButtonPlay()
-      $audio.on 'durationchange.fndtn.player', => # 'NaN' to loaded
+      $audio.on 'durationchange.zf.player`', => # 'NaN' to loaded
         @updateTimeStatuses()   # Update both time statuses
-      $audio.on 'progress.fndtn.player', =>
+      $audio.on 'progress.zf.player`', =>
         @redrawBufferizationBars()
         @updateDisabledStatus()
-      $audio.on 'canplay.fndtn.player', => # Can be played
+      $audio.on 'canplay.zf.player`', => # Can be played
         @canPlayCurrent = true
         @play() if @options.playOnLoad
         @redrawBufferizationBars()
@@ -118,7 +118,7 @@
       @
     # Set up volume button
     setUpButtonVolume: ->
-      @$volume.bind 'click.fndtn.player', =>
+      @$volume.bind 'click.zf.player`', =>
         @buttonVolumeHandler()
     # Update volume button
     updateButtonVolume: ->
@@ -140,12 +140,12 @@
     setUpPlayedProgress: ->
       @$played.css 'width', @played + '%'
       # Click and drag progress
-      @$progress.on 'click.fndtn.player', (e) =>
+      @$progress.on 'click.zf.player`', (e) =>
         @seekPercent 100 * e.offsetX // @$progress.outerWidth()
       # Drag section is tricky
       # TODO: Mobile actions
 
-      @$progress.on 'mousedown.fndtn.player',  () =>
+      @$progress.on 'mousedown.zf.player`',  () =>
         @nowdragging = true
         @setVolume(@options.dimmedVolume)
 
@@ -154,11 +154,11 @@
         if @nowdragging
           @nowdragging = false
           @setVolume(1)
-      @$player.on 'mouseleave.fndtn.player', () -> _stopDragHandler()
-      $(document).on 'mouseup.fndtn.player', () -> _stopDragHandler()
-      $(window).on 'blur.fndtn.player', () -> _stopDragHandler()
+      @$player.on 'mouseleave.zf.player`', () -> _stopDragHandler()
+      $(document).on 'mouseup.zf.player`', () -> _stopDragHandler()
+      $(window).on 'blur.zf.player`', () -> _stopDragHandler()
       # Update player position
-      @$progress.on 'mousemove.fndtn.player', (e) =>
+      @$progress.on 'mousemove.zf.player`', (e) =>
         if @nowdragging
           @seekPercent 100 * e.offsetX // @$progress.outerWidth()
 
@@ -167,24 +167,16 @@
       @$played.css 'width', @played + '%'
     redrawBufferizationBars: ->
       # This function should be called after playerBeautifyProgressBar
-      # Remove all current indicators
-      @$progress.find('.buffered').remove()
+      @$progress.find('.buffered').remove() # remove all current indicators
       segments = @audio.buffered.length
-      # If there is at least one segment...
-      if segments > 0
-        # Some of $progress styles are used for buffer indicators
-        t =  parseInt @$progress.css('padding-top'), 10
-        l = parseInt @$progress.css('padding-left'), 10
-        w = @$progress.width()
-        h = @$progress.height()
-        widthDelta = 2 * parseInt @$played.css('padding-left'), 10
+      if segments > 0 # If there is at least one segment...
+        w = @$progress.width() # $progress width used for buffer indicators
         for range in [0...segments]
           b = @audio.buffered.start(range) # Segment start second
           e = @audio.buffered.end(range) # Segment end second
           switchClass(@$played.clone(), 'buffered', 'played')
-          .css('left', l + (w * (b // @audio.duration)) + 'px')
-          .css('top', t).height(h).width(w*(e-b)//@audio.duration)
-          .appendTo(@$progress)
+          .css('left', (w * (b // @audio.duration)) + 'px')
+          .width(w*(e-b)//@audio.duration).appendTo(@$progress)
 
     # Volume ===================================================================
     setVolume: (vol) ->
@@ -208,19 +200,19 @@
     # Look and feel ============================================================
     # This method toggles player size
     togglePlayerSize: ->
-      # TODO: rename @currentUISize and switchToSize
       toSize = if @currentUISize == 'normal' then 'small' else 'normal'
       @currentUISize = toSize if @setPlayerSize toSize
 
     # Set particalar player size
     setPlayerSize: (size) ->
-      if ('normal' == size or 'small' == size) and size != @currentUISize
-          switchClass @$wrapper, size, @currentUISize
-          @setPlayerSizeHandler()
-          return @currentUISize = size
-      else
-        console.error 'setPlayerSize: incorrect size argument'
-        return false
+      if size != @currentUISize
+        if ('normal' == size or 'small' == size)
+            switchClass @$wrapper, size, @currentUISize
+            @setPlayerSizeHandler()
+            return @currentUISize = size
+        else
+          console.error 'setPlayerSize: incorrect size argument'
+          return false
 
     # Player resize handler
     setPlayerSizeHandler: ->
@@ -230,17 +222,32 @@
     # Deuglification of round progress bar when it 0% width
     playerBeautifyProgressBar: ->
       if @$progress.hasClass('round')
-        semiHeight = @$played.height()/2
-        # TODO: Make it better
-        @$played.css 'padding', '0 ' + semiHeight + 'px'
-        @$progress.find('.buffered').css 'padding', '0 ' + semiHeight + 'px'
+        semiHeight = @$progress.height()/2
+        @$played.css 'padding', "0 #{semiHeight}px"
+        @$progress.find('.buffered').css 'padding', "0 #{semiHeight}px"
 
     getPlayerInstances: ->
       $.data(document.body, 'FoundationPlayers')
 
     # Data links ===============================================================
     parseDataLinks: ->
-      false
+      @dataLinks = [] # Reset dataLinks before parsing
+      timeLinks = $('[data-seek-to-time]')
+      percentLinks = $('[data-seek-to-percentage]')
+      clсk = 'click.zf.player.seek'
+      #  TODO: DRY this up
+      $.each timeLinks, (index, el) =>
+        if parsedData = parseSeekTime $(el).data 'seek-to-time'
+          @dataLinks.push el
+          $(el).off(clсk).on clсk, @, (e) ->
+            e.preventDefault() # Prevent default action
+            e.data.seekToTime parsedData
+      $.each percentLinks, (index, el) =>
+        if parsedData = parseSeekPercent $(el).data 'seek-to-percentage'
+          @dataLinks.push el
+          $(el).off(clсk).on clсk, @, (e) ->
+            e.preventDefault() # Prevent default action
+            e.data.seekPercent parsedData
 
     # Helpers ==================================================================
     # Some really internal stuff goes here
@@ -275,6 +282,12 @@
       else
         false
 
+    parseSeekPercent = (p) ->
+      return isNumber p unless isNumber p # Can't use both '0.65' and '65'
+      return 0 if p < 0
+      return 1 if p > 100
+      return if p > 1 then p / 100 else p
+
     # API for testing private functions
     # This comment section passed in compiled JavaScript
     ###__TEST_ONLY_SECTION_STARTS__###
@@ -284,6 +297,7 @@
       stringPadLeft: stringPadLeft
       switchClass: switchClass
       parseSeekTime: parseSeekTime
+      parseSeekPercent: parseSeekPercent
     ###__TEST_ONLY_SECTION_ENDS__###
 
   # Global variable for testing prototype functions
